@@ -1,26 +1,32 @@
-# peekport
+<p align="center">
+  <img src="App/Assets.xcassets/AppIcon.appiconset/icon_256.png" width="112" alt="peekport app icon">
+</p>
 
-See what's running on localhost. peekport is a Mac menu bar app that lists every server listening on a local port, grouped by the project it was started from. Open it, copy the URL or stop it, without a terminal.
+<h1 align="center">peekport</h1>
 
-**[Download peekport](https://familiasi.gumroad.com/l/peekport)**: a signed and notarized build, free, with optional pay-what-you-want support.
+<p align="center">See what's running on localhost.</p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/curiousigor/peekport/releases"><img src="https://img.shields.io/github/v/tag/curiousigor/peekport?label=version&color=3B3B3B&labelColor=1A1A1A" alt="Version"></a>
+  <img src="https://img.shields.io/badge/macOS-15%2B-3B3B3B?logo=apple&logoColor=white&labelColor=1A1A1A" alt="macOS 15 or newer">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3B3B3B?labelColor=1A1A1A" alt="MIT license"></a>
+</p>
 
-- **Grouped by project.** Each port sits under the folder it was started from, found from the process's working directory.
-- **Start commands.** `next dev`, `vite`, `uvicorn main:app` instead of three rows of "node".
-- **Docker containers.** Published ports show the container and image, grouped with their compose project. Docker Desktop and OrbStack.
-- **Stops what restarts it.** Stopping a server can also stop the `npm run dev`, `nodemon` or `turbo` behind it, or the whole compose project.
-- **Down alerts.** Watch a port and get a notification when it stops listening.
-- **Keyboard first.** ⌃⌥P from any app (or a shortcut of your own), arrows to select, Return to open, ⌘C to copy, ⌘⌫ to stop.
-- **Project actions.** Reveal a project in Finder, or open it in your editor or terminal.
+<p align="center">
+  <img src=".github/peekport.png" width="460" alt="The peekport menu open under its menu bar icon: ports grouped by project, with start commands, a Docker container and uptimes">
+</p>
 
-No account, no tracking, no network calls. About 16 MB of memory and no CPU while idle.
+<p align="center">A Mac menu bar app that lists every server listening on a local port, grouped by the project it was started from.<br>Open it, copy the URL or stop it, without a terminal.</p>
 
-## Requirements
+## Install
 
-macOS 15 Sequoia or newer, Apple Silicon or Intel.
+### Download
 
-## Build from source
+<a href="https://familiasi.gumroad.com/l/peekport"><img src=".github/download.png" width="240" alt="Download for macOS"></a>
+
+Free. macOS 15 Sequoia or newer, Apple Silicon and Intel. Signed and notarized by Apple.
+
+### Build from source
 
 You need Xcode 16 or newer. No dependencies.
 
@@ -41,6 +47,18 @@ xcodebuild -scheme App -destination 'platform=macOS' test
 ```
 
 `release/build.sh` makes the notarized release zip and needs the maintainer's Developer ID team.
+
+## Features
+
+- **Grouped by project.** Each port sits under the folder it was started from, found from the process's working directory.
+- **Start commands.** `next dev`, `vite`, `uvicorn main:app` instead of three rows of "node".
+- **Docker containers.** Published ports show the container and image, grouped with their compose project. Docker Desktop and OrbStack.
+- **Stops what restarts it.** Stopping a server can also stop the `npm run dev`, `nodemon` or `turbo` behind it, or the whole compose project.
+- **Down alerts.** Watch a port and get a notification when it stops listening.
+- **Keyboard first.** ⌃⌥P from any app (or a shortcut of your own), arrows to select, Return to open, ⌘C to copy, ⌘⌫ to stop.
+- **Project actions.** Reveal a project in Finder, or open it in your editor or terminal.
+
+No account, no tracking, no network calls. About 16 MB of memory and no CPU while idle.
 
 ## How it works
 
