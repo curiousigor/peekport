@@ -77,6 +77,12 @@ final class MenuBarController: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated { self?.place(size: host.preferredContentSize) }
         }
         panel.makeKeyAndOrderFront(nil)
+        // The icon stays highlighted while the panel is open, as with system menus. A click
+        // clears the highlight when the mouse goes up, after this runs, so set it a turn later.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.panel.isVisible else { return }
+            self.statusItem.button?.highlight(true)
+        }
         // peekport never becomes the active app, so a click or switch elsewhere does not take
         // key from the panel. Close on both, the way a menu does. Needs no Accessibility permission.
         outsideClick = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
@@ -95,6 +101,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         closedAt = .now
+        statusItem.button?.highlight(false)
         sizeObservation = nil
         panel.contentViewController = nil
         outsideClick.map(NSEvent.removeMonitor)
