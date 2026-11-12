@@ -6,8 +6,7 @@ import SwiftUI
 @MainActor
 final class MenuBarController: NSObject, NSWindowDelegate {
     private let store: PortStore
-    /// Wider than square, so the highlight pill has room around the icon.
-    private let statusItem = NSStatusBar.system.statusItem(withLength: 28)
+    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let panel = MenuBarPanel()
     private var sizeObservation: NSKeyValueObservation?
     private var outsideClick: Any?
@@ -17,36 +16,31 @@ final class MenuBarController: NSObject, NSWindowDelegate {
     private var closedAt = Date.distantPast
     /// The display the panel opens on: under the pointer for a click, the focused one for the hotkey.
     private var targetScreen: NSScreen?
+    /// The hotkey's display, carried through the programmatic click that starts a session.
+    private var pendingScreen: NSScreen?
+    /// Set while the panel closes, so ending the menu bar session does not close it twice.
+    private var closing = false
 
     init(store: PortStore) {
         self.store = store
         super.init()
         statusItem.button?.image = Self.socketIcon
-        statusItem.button?.target = self
-        statusItem.button?.action = #selector(iconClicked)
+        if #available(macOS 27, *) {
+            // macOS handles the click and shows the icon as open for as long as the session
+            // lasts, the same as for menus; see the delegate methods below.
+            statusItem.expandedInterfaceDelegate = self
+        } else {
+            statusItem.button?.target = self
+            statusItem.button?.action = #selector(iconClicked)
+        }
         panel.delegate = self
     }
 
     /// A wall socket: a port in the plain sense. Drawn in code from the same 16 pt shapes as
-    /// the design, as a template image so macOS tints it for light and dark menu bars.
-    static let socketIcon = socket(highlighted: false)
-
-    /// The same socket on a translucent pill, shown while the panel is open. macOS 27 draws no
-    /// highlight for `button.highlight(true)` in an app that never becomes active, so the pill
-    /// is part of the image; as a template, it is tinted like the system's own highlight.
-    static let highlightedSocketIcon = socket(highlighted: true)
-
-    private static func socket(highlighted: Bool) -> NSImage {
-        let size = highlighted ? NSSize(width: 26, height: 20) : NSSize(width: 16, height: 16)
-        let image = NSImage(size: size, flipped: true) { _ in
-            if highlighted {
-                NSColor.black.withAlphaComponent(0.22).set()
-                NSBezierPath(roundedRect: NSRect(origin: .zero, size: size), xRadius: 6, yRadius: 6).fill()
-            }
+    /// the design, as a template image so macOS tints it for light, dark and highlighted.
+    static let socketIcon: NSImage = {
+        let image = NSImage(size: NSSize(width: 16, height: 16), flipped: true) { _ in
             NSColor.black.set()
-            let transform = NSAffineTransform()
-            transform.translateX(by: (size.width - 16) / 2, yBy: (size.height - 16) / 2)
-            transform.concat()
             let frame = NSBezierPath(roundedRect: NSRect(x: 2, y: 2, width: 12, height: 12), xRadius: 3.5, yRadius: 3.5)
             frame.lineWidth = 1.4
             frame.stroke()
@@ -62,7 +56,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         image.isTemplate = true
         image.accessibilityDescription = "peekport"
         return image
-    }
+    }()
 
     /// With a menu bar on every display, the icon clicked can be on any of them.
     @objc private func iconClicked() {
@@ -74,6 +68,13 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         if panel.isVisible {
             panel.close()
         } else if Date.now.timeIntervalSince(closedAt) > 0.3 {
+            if #available(macOS 27, *) {
+                // A programmatic click starts a session like a real one, so the icon shows as open.
+                pendingScreen = screen ?? NSScreen.main
+                statusItem.button?.performClick(nil)
+                if panel.isVisible { return }
+                pendingScreen = nil
+            }
             targetScreen = screen ?? NSScreen.main
             open()
         }
@@ -93,8 +94,14 @@ final class MenuBarController: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated { self?.place(size: host.preferredContentSize) }
         }
         panel.makeKeyAndOrderFront(nil)
-        // The icon stays highlighted while the panel is open, as with system menus.
-        statusItem.button?.image = Self.highlightedSocketIcon
+        if #unavailable(macOS 27) {
+            // Before the session API, the icon is highlighted by hand. A click clears the
+            // highlight when the mouse goes up, after this runs, so set it a turn later.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.panel.isVisible else { return }
+                self.statusItem.button?.highlight(true)
+            }
+        }
         // peekport never becomes the active app, so a click or switch elsewhere does not take
         // key from the panel. Close on both, the way a menu does. Needs no Accessibility permission.
         outsideClick = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
@@ -113,7 +120,14 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         closedAt = .now
-        statusItem.button?.image = Self.socketIcon
+        closing = true
+        defer { closing = false }
+        if #available(macOS 27, *) {
+            // Closed by peekport (outside click, Escape, app switch): end the menu bar session too.
+            statusItem.expandedInterfaceSession?.cancel()
+        } else {
+            statusItem.button?.highlight(false)
+        }
         sizeObservation = nil
         panel.contentViewController = nil
         outsideClick.map(NSEvent.removeMonitor)
@@ -169,3 +183,24 @@ private final class MenuBarPanel: NSPanel {
         close()
     }
 }
+
+@available(macOS 27, *)
+extension MenuBarController: @MainActor NSStatusItemExpandedInterfaceDelegate {
+    func statusItem(_ statusItem: NSStatusItem, didBegin expandedInterfaceSession: NSStatusItemExpandedInterfaceSession) {
+        guard !panel.isVisible else { return }
+        // Clicking the icon while open first closes the panel (it loses key); the click
+        // then starts a new session, which must not reopen it.
+        guard Date.now.timeIntervalSince(closedAt) > 0.3 else {
+            expandedInterfaceSession.cancel()
+            return
+        }
+        targetScreen = pendingScreen ?? NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
+        pendingScreen = nil
+        open()
+    }
+
+    func statusItemDidEndExpandedInterfaceSession(_ statusItem: NSStatusItem, animated: Bool) {
+        if panel.isVisible, !closing { panel.close() }
+    }
+}
+
